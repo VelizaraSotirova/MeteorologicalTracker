@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36717.8 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MeteoTracker", "MeteoTracker\MeteoTracker.csproj", "{F335D678-3233-4807-B07E-25C780A7D4ED}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F335D678-3233-4807-B07E-25C780A7D4ED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F335D678-3233-4807-B07E-25C780A7D4ED}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F335D678-3233-4807-B07E-25C780A7D4ED}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F335D678-3233-4807-B07E-25C780A7D4ED}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B05E4342-21F0-4CFB-BD99-C5F34F49DD5A}
+	EndGlobalSection
+EndGlobal
