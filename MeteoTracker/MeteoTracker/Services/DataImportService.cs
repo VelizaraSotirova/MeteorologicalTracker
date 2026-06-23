@@ -1,11 +1,12 @@
-﻿using System;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using MeteoTracker.Data;
 using MeteoTracker.Entities;
+using ExcelDataReader;
+using System;
+using System.Data;
+using System.Globalization;
+using System.IO;
+using System.Threading.Tasks;
 
 namespace MeteoTracker.Services
 {
@@ -18,11 +19,17 @@ namespace MeteoTracker.Services
             _context = context;
         }
 
-        public async Task<int> ImportCsvAsync(string filePath, string stationName)
+        public async Task<int> ImportCsvAsync(string filePath, string fileName)
         {
-            // 1. Проверяваме дали станцията съществува, ако не - я създаваме
+            string stationName = fileName.Split(' ')[0].Trim();
+            if (string.IsNullOrEmpty(stationName) || stationName.Contains('.'))
+            {
+                throw new ArgumentException("Неуспешно извличане на името на станцията.");
+            }
+            stationName = char.ToUpper(stationName[0]) + stationName.Substring(1).ToLower();
+
             var station = await _context.WeatherStations
-                .FirstOrDefaultAsync(s => s.Name.ToLower() == stationName.ToLower());
+                .FirstOrDefaultAsync(s => s.Name == stationName);
 
             if (station == null)
             {
@@ -31,50 +38,85 @@ namespace MeteoTracker.Services
                 await _context.SaveChangesAsync();
             }
 
-            // Вземаме последното записвано време за тази станция, за да не дублираме данни, ако качим файла пак
-            var lastTimestamp = await _context.WeatherMeasurements
-                .Where(m => m.StationId == station.Id)
-                .Select(m => (DateTime?)m.Timestamp)
-                .MaxAsync() ?? DateTime.MinValue;
+            int recordsImported = 0;
 
-            var lines = await File.ReadAllLinesAsync(filePath);
-            int importedCount = 0;
+            // Time zone for Bulgaria (FLE Standard Time)
+            TimeZoneInfo bgTimeZone = TimeZoneInfo.FindSystemTimeZoneById("FLE Standard Time");
 
-            // Пропускаме заглавния ред (Index, Timestamp...)
-            foreach (var line in lines.Skip(1))
+            using (var stream = File.Open(filePath, FileMode.Open, FileAccess.Read))
             {
-                if (string.IsNullOrWhiteSpace(line)) continue;
-
-                var tokens = line.Split(',');
-                if (tokens.Length < 4) continue;
-
-                string rawTimestamp = tokens[1].Trim();
-                string rawTemp = tokens[2].Trim();
-                string rawHumidity = tokens[3].Trim();
-
-                // Парсваме датата точно по формата в лога (M.d.yyyy H:mm:ss)
-                if (DateTime.TryParseExact(rawTimestamp, "M.d.yyyy H:mm:ss",
-                    CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime timestamp))
+                using (var reader = ExcelReaderFactory.CreateReader(stream))
                 {
-                    // Ако този запис вече съществува в базата, го пропускаме
-                    if (timestamp <= lastTimestamp) continue;
+                    var result = reader.AsDataSet();
+                    var table = result.Tables[0];
 
-                    if (decimal.TryParse(rawTemp, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal temp) &&
-                        decimal.TryParse(rawHumidity, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal humidity))
+                    for (int i = 1; i < table.Rows.Count; i++)
                     {
+                        var row = table.Rows[i];
+                        if (row.ItemArray.Length < 4) continue;
+
+                        string dateText = row[1]?.ToString()?.Trim() ?? "";
+                        string tempText = row[2]?.ToString()?.Trim() ?? "";
+                        string humidityText = row[3]?.ToString()?.Trim() ?? "";
+
+                        if (string.IsNullOrEmpty(dateText) || string.IsNullOrEmpty(tempText) || string.IsNullOrEmpty(humidityText))
+                            continue;
+
+                        // Data parsing with multiple formats
+                        if (!DateTime.TryParse(dateText, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime timestamp))
+                        {
+                            if (!DateTime.TryParseExact(dateText, "d.M.yyyy H:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out timestamp))
+                            {
+                                if (!DateTime.TryParseExact(dateText, "M.d.yyyy H:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out timestamp))
+                                {
+                                    continue;
+                                }
+                            }
+                        }
+
+                        // FILTER BY HOUR AND MINUTES (CLIMATIC TERMS)
+                        // 1. Check for minutes - must be exactly 25
+                        if (timestamp.Minute != 25)
+                        {
+                            continue; // Skip the row immediately, without loading the database 
+                        }
+
+                        // 2. Check if the specific date is in Daylight Saving Time (DST) according to the BG time zone
+                        bool isSubmitedInDst = bgTimeZone.IsDaylightSavingTime(timestamp);
+                        int requiredEveningHour = isSubmitedInDst ? 22 : 21; // 22 for summer, 21 for winter
+
+                        // 3. Check if the hour matches one of the three terms      
+                        if (timestamp.Hour != 8 && timestamp.Hour != 15 && timestamp.Hour != requiredEveningHour)
+                        {
+                            continue; // We don't need this hour, skip the row
+                        }
+
+                        // Parsing numbers (only for approved terms)
+                        if (!decimal.TryParse(tempText, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal temperature) ||
+                            !decimal.TryParse(humidityText, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal humidity))
+                        {
+                            continue;
+                        }
+
+                        // Prevent duplication: Check if a record with the same station and timestamp already exists 
+                        bool alreadyExists = await _context.WeatherMeasurements
+                            .AnyAsync(m => m.StationId == station.Id && m.Timestamp == timestamp);
+
+                        if (alreadyExists) continue;
+
+                        // Create record and add to the database
                         var measurement = new WeatherMeasurement
                         {
                             StationId = station.Id,
                             Timestamp = timestamp,
-                            Temperature = temp,
+                            Temperature = temperature,
                             Humidity = humidity
                         };
 
                         _context.WeatherMeasurements.Add(measurement);
-                        importedCount++;
+                        recordsImported++;
 
-                        // За да не претоварваме паметта при 12,000 реда, записваме в базата на порции от по 1000 реда
-                        if (importedCount % 1000 == 0)
+                        if (recordsImported % 500 == 0)
                         {
                             await _context.SaveChangesAsync();
                         }
@@ -82,13 +124,12 @@ namespace MeteoTracker.Services
                 }
             }
 
-            // Записваме останалите редове
-            if (importedCount % 1000 != 0)
+            if (recordsImported % 500 != 0)
             {
                 await _context.SaveChangesAsync();
             }
 
-            return importedCount;
+            return recordsImported;
         }
     }
 }
