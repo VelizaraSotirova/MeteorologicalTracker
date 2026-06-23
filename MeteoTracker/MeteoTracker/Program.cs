@@ -60,6 +60,7 @@ namespace MeteoTracker
             //Attach the AuthService to the DI container
             builder.Services.AddScoped<DataImportService>();
             builder.Services.AddScoped<AuthService>();
+            builder.Services.AddScoped<WeatherService>();
 
             // Configuring JWT Authentication
             var jwtKey = builder.Configuration["Jwt:Key"];
