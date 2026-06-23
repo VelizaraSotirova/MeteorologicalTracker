@@ -11,7 +11,8 @@ namespace MeteoTracker.Data
         }
 
         public DbSet<WeatherMeasurement> WeatherMeasurements { get; set; }
-        public DbSet<WeatherStation> WeatherStations { get; set; } // Новата ни таблица
+        public DbSet<WeatherStation> WeatherStations { get; set; }
+        public DbSet<User> Users { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
