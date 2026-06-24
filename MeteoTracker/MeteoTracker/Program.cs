@@ -86,6 +86,11 @@ namespace MeteoTracker
                 };
             });
 
+            // Add CORS policy to allow requests from any origin
+            builder.Services.AddCors(options => {
+                options.AddDefaultPolicy(policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+            });
+
             builder.Services.AddAuthorization();
 
             var app = builder.Build();
@@ -98,7 +103,7 @@ namespace MeteoTracker
             }
 
             app.UseHttpsRedirection();
-
+            app.UseCors(); // Enable CORS
             app.UseAuthentication();
             app.UseAuthorization();
 

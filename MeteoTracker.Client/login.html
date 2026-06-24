@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeteoTracker - Вход</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+        }
+        .login-card {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 400px;
+        }
+        .brand-icon {
+            font-size: 3rem;
+            color: #1e3c72;
+        }
+        .btn-login {
+            background-color: #1e3c72;
+            color: white;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        .btn-login:hover {
+            background-color: #2a5298;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="login-card text-center">
+        <div class="mb-3">
+            <i class="fa-solid fa-cloud-sun-rain brand-icon"></i>
+            <h2 class="fw-bold mt-2 text-dark">MeteoTracker</h2>
+            <p class="text-muted">Вход в системата</p>
+        </div>
+
+        <div id="errorMessage" class="alert alert-danger d-none" role="alert"></div>
+
+        <form id="loginForm" class="text-start">
+            <div class="mb-3">
+                <label for="username" class="form-label fw-semibold">Потребителско име</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-user"></i></span>
+                    <input type="text" class="form-control" id="username" required placeholder="Въведете потребителско име">
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <label for="password" class="form-label fw-semibold">Парола</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-lock"></i></span>
+                    <input type="password" class="form-control" id="password" required placeholder="Въведете парола">
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-login w-100 py-2 shadow-sm">
+                <i class="fa-solid fa-right-to-bracket me-2"></i>Влез
+            </button>
+        </form>
+
+        <div class="mt-4">
+            <a href="index.html" class="text-decoration-none text-muted small">
+                <i class="fa-solid fa-arrow-left me-1"></i> Обратно към началото
+            </a>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = "https://localhost:7025"; 
+
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault(); // Спираме стандартното презареждане на страницата
+
+            const usernameInput = document.getElementById('username').value;
+            const passwordInput = document.getElementById('password').value;
+            const errorDiv = document.getElementById('errorMessage');
+            
+            errorDiv.classList.add('d-none'); // Скриваме предишни грешки
+
+            try {
+                // Send POST request to your API
+                const response = await fetch(`${API_BASE_URL}/api/Auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: usernameInput,
+                        password: passwordInput
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Success: Save JWT token in the browser
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('username', usernameInput);
+
+                    // Redirect user to the home page
+                    window.location.href = 'index.html';
+                } else {
+                    // Error handling: Show error message
+                    errorDiv.innerText = data.message || "Невалидни потребителски данни!";
+                    errorDiv.classList.remove('d-none');
+                }
+            } catch (error) {
+                // Server not available or other network error
+                errorDiv.innerText = "Грешка при връзка с бекхенда. Уверете се, че API-то работи!";
+                errorDiv.classList.remove('d-none');
+                console.error("Login Error:", error);
+            }
+        });
+    </script>
+</body>
+</html>
