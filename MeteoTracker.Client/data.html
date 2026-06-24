@@ -7,6 +7,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -92,11 +94,17 @@
             </div>
         </div>
 
-        <div class="row g-3 mb-4 d-none" id="statsRow">
+        <div class="row row-cols-1 row-cols-md-3 row-cols-xl-5 g-3 mb-4 d-none" id="statsRow">
             <div class="col">
                 <div class="card card-custom shadow-sm p-3 stat-card text-center" style="border-left-color: #ffc107;">
                     <span class="text-muted small fw-semibold">Ср. Температура</span>
                     <h3 class="fw-bold text-dark mt-1" id="statAvgTemp">-- °C</h3>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card card-custom shadow-sm p-3 stat-card text-center" style="border-left-color: #fd7e14;">
+                    <span class="text-muted small fw-semibold">Ср. Денонощна (климатична)</span>
+                    <h3 class="fw-bold mt-1" id="statClimateAvgTemp" style="color: #fd7e14;">-- °C</h3>
                 </div>
             </div>
             <div class="col">
@@ -117,11 +125,14 @@
                     <h3 class="fw-bold text-info mt-1" id="statAvgHum">-- %</h3>
                 </div>
             </div>
-            <div class="col">
-                <div class="card card-custom shadow-sm p-3 stat-card text-center" style="border-left-color: #198754;">
-                    <span class="text-muted small fw-semibold">Общ брой записи</span>
-                    <h3 class="fw-bold text-success mt-1" id="statTotalCount">--</h3>
-                </div>
+        </div>
+
+        <div class="card card-custom shadow-sm p-4 mb-4 d-none" id="chartCard">
+            <h5 class="fw-bold text-dark mb-3">
+                <i class="fa-solid fa-chart-line me-2 text-primary"></i>Хронология на измерванията за избрания период
+            </h5>
+            <div style="position: relative; height:350px; width:100%">
+                <canvas id="weatherChart"></canvas>
             </div>
         </div>
 
@@ -158,7 +169,7 @@
     <script>
         const API_BASE_URL = "https://localhost:7025"; 
 
-        // Page security check
+        // Защита и проверка на сесията
         const token = localStorage.getItem('token');
         const username = localStorage.getItem('username');
         const userRole = localStorage.getItem('role');
@@ -174,11 +185,12 @@
             if (menuImport) menuImport.classList.add('d-none');
         }
 
-        // Pagination variables
+        // Глобални променливи за пагинация и графики
         let currentPage = 1;
         const pageSize = 15; 
+        let weatherChartInstance = null; 
 
-        // 1. Load stations into the select dropdown
+        // 1. Зареждане на станциите в падащото меню
         async function loadStations() {
             try {
                 const response = await fetch(`${API_BASE_URL}/api/Weather/stations`, {
@@ -198,7 +210,7 @@
             }
         }
 
-        // 2. Load data and statistics
+        // 2. Основна функция за извличане на данни (Разделени за Таблица и Графика)
         async function loadData() {
             const stationId = document.getElementById('selectStation').value;
             const fromDate = document.getElementById('fromDate').value;
@@ -210,25 +222,62 @@
                 return;
             }
 
+            // ⚠️ ФРОНТЕНД ВАЛИДАЦИЯ ПРЕДИ ИЗПРАЩАНЕ НА ЗАЯВКА
+            if (toDate < fromDate) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center py-4 text-danger fw-semibold">
+                            <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                            Невалиден период! Моля, изберете крайната дата („До дата“) да бъде след началната („От дата“).
+                        </td>
+                    </tr>`;
+                document.getElementById('chartCard').classList.add('d-none');
+                document.getElementById('statsRow').classList.add('d-none');
+                updatePagination(0);
+                return;
+            }
+
             tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div> Зареждане...</td></tr>`;
 
             try {
-                const measurementsUrl = `${API_BASE_URL}/api/Weather/measurements/${stationId}?fromDate=${fromDate}&toDate=${toDate}&page=${currentPage}&pageSize=${pageSize}`;
-                
-                const response = await fetch(measurementsUrl, {
+                // --- ЗАЯВКА 1: Само 15 реда за таблицата и пагинацията ---
+                const tableUrl = `${API_BASE_URL}/api/Weather/measurements/${stationId}?fromDate=${fromDate}&toDate=${toDate}&page=${currentPage}&pageSize=${pageSize}`;
+                const tableResponse = await fetch(tableUrl, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                
-                const result = await response.json();
-                tbody.innerHTML = '';
 
-                if (!result.data || result.data.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-muted">Няма открити измервания за този период.</td></tr>`;
+                // ⚠️ ПРОВЕРКА ДАЛИ СЪРВЪРЪТ ВРЪЩА ГРЕШКА (400 BAD REQUEST)
+                if (!tableResponse.ok) {
+                    if (tableResponse.status === 400) {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-danger fw-semibold">
+                                    <i class="fa-solid fa-calendar-xmark me-2"></i>
+                                    Грешка в датите: Крайната дата не може да бъде по-рано от началната дата!
+                                </td>
+                            </tr>`;
+                    } else {
+                        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-danger fw-semibold">Сървърът върна грешка (Статус: ${tableResponse.status}).</td></tr>`;
+                    }
+                    document.getElementById('chartCard').classList.add('d-none');
+                    document.getElementById('statsRow').classList.add('d-none');
                     updatePagination(0);
                     return;
                 }
 
-                result.data.forEach((m, index) => {
+                const tableResult = await tableResponse.json();
+                tbody.innerHTML = '';
+
+                if (!tableResult.data || tableResult.data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-muted">Няма открити измервания за този период.</td></tr>`;
+                    document.getElementById('chartCard').classList.add('d-none');
+                    document.getElementById('statsRow').classList.add('d-none');
+                    updatePagination(0);
+                    return;
+                }
+
+                // Пълнене на таблицата (точно 15 записа за текущата страница)
+                tableResult.data.forEach((m, index) => {
                     const dateObj = new Date(m.timestamp);
                     const formattedDate = dateObj.toLocaleString('bg-BG');
                     let termLabel = `${dateObj.getHours()}:25 ч.`;
@@ -245,16 +294,29 @@
                     tbody.innerHTML += row;
                 });
 
-                updatePagination(result.totalCount);
+                updatePagination(tableResult.totalCount);
                 loadStatistics(stationId, fromDate, toDate);
+                
+                // --- ЗАЯВКА 2: Извличане на 500 записа наведнъж само за графиката ---
+                const chartUrl = `${API_BASE_URL}/api/Weather/measurements/${stationId}?fromDate=${fromDate}&toDate=${toDate}&page=1&pageSize=500`;
+                const chartResponse = await fetch(chartUrl, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (chartResponse.ok) {
+                    const chartResult = await chartResponse.json();
+                    if (chartResult.data && chartResult.data.length > 0) {
+                        renderChart(chartResult.data);
+                    }
+                }
 
             } catch (err) {
                 console.error(err);
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-danger fw-semibold">Грешка при комуникация с API-то.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-danger fw-semibold"><i class="fa-solid fa-wifi-slash me-2"></i>Няма връзка със сървъра. Проверете дали бекендът работи.</td></tr>`;
             }
         }
 
-        // 3. Load statistics (Cheks for both camelCase and PascalCase properties)
+        // 3. Зареждане на статистиката от С# бекенда
         async function loadStatistics(stationId, fromDate, toDate) {
             try {
                 const statsUrl = `${API_BASE_URL}/api/Weather/statistics/${stationId}?fromDate=${fromDate}&toDate=${toDate}`;
@@ -271,21 +333,115 @@
                 if (stats) {
                     const avgT = stats.averageTemperature ?? stats.AverageTemperature ?? 0;
                     const maxT = stats.maxTemperature ?? stats.MaxTemperature ?? 0;
-                    const minT = stats.minTemperature ?? stats.MinTemperature ?? 0;
+                    const minT = stats.minTemperature ?? stats.MinTemperature ?? 0; 
                     const avgH = stats.averageHumidity ?? stats.AverageHumidity ?? 0;
                     const count = stats.totalMeasurements ?? stats.TotalMeasurements ?? 0;
+
+                    // Получаване на новата средна денонощна стойност (климатична)
+                    const climateAvg = stats.climateAverageTemperature ?? stats.ClimateAverageTemperature;
 
                     document.getElementById('statAvgTemp').innerText = `${Number(avgT).toFixed(1)} °C`;
                     document.getElementById('statMaxTemp').innerText = `${Number(maxT).toFixed(1)} °C`;
                     document.getElementById('statMinTemp').innerText = `${Number(minT).toFixed(1)} °C`; 
                     document.getElementById('statAvgHum').innerText = `${Number(avgH).toFixed(0)} %`;
-                    document.getElementById('statTotalCount').innerText = count;
+                    
+                    // Пълнене на новата климатична карта
+                    const climateElement = document.getElementById('statClimateAvgTemp');
+                    if (climateAvg !== null && climateAvg !== undefined) {
+                        climateElement.innerText = `${Number(climateAvg).toFixed(1)} °C`;
+                    } else {
+                        climateElement.innerText = "Няма пълни данни";
+                    }
                     
                     document.getElementById('statsRow').classList.remove('d-none');
                 }
             } catch (err) {
                 console.error("Грешка при зареждане на статистика:", err);
             }
+        }
+
+        // 4. Показване на пълната и вярна линейна графика (Chart.js)
+        function renderChart(allMeasurements) {
+            const ctx = document.getElementById('weatherChart').getContext('2d');
+            document.getElementById('chartCard').classList.remove('d-none');
+
+            if (weatherChartInstance) {
+                weatherChartInstance.destroy();
+            }
+
+            const sortedData = [...allMeasurements].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            
+            const labels = sortedData.map(m => {
+                const d = new Date(m.timestamp);
+                return d.toLocaleDateString('bg-BG', { day: '2-digit', month: '2-digit' }) + ' ' + 
+                       d.toLocaleTimeString('bg-BG', { hour: '2-digit', minute: '2-digit' });
+            });
+            const temperatures = sortedData.map(m => m.temperature);
+            const humidities = sortedData.map(m => m.humidity);
+
+            weatherChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Температура (°C)',
+                            data: temperatures,
+                            borderColor: '#dc3545',
+                            backgroundColor: 'rgba(220, 53, 69, 0.04)',
+                            yAxisID: 'y-temp',
+                            tension: 0.2,
+                            pointRadius: sortedData.length > 50 ? 1 : 3,
+                            fill: true
+                        },
+                        {
+                            label: 'Влажност (%)',
+                            data: humidities,
+                            borderColor: '#0d6efd',
+                            backgroundColor: 'rgba(13, 110, 253, 0.04)',
+                            yAxisID: 'y-hum',
+                            tension: 0.2,
+                            pointRadius: sortedData.length > 50 ? 1 : 3,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    scales: {
+                        'y-temp': {
+                            type: 'linear',
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Температура (°C)',
+                                color: '#dc3545',
+                                font: { weight: 'bold' }
+                            }
+                        },
+                        'y-hum': {
+                            type: 'linear',
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Влажност (%)',
+                                color: '#0d6efd',
+                                font: { weight: 'bold' }
+                            },
+                            grid: {
+                                drawOnChartArea: false 
+                            },
+                            min: 0,
+                            max: 100
+                        }
+                    }
+                }
+            });
         }
 
         function updatePagination(totalCount) {
@@ -295,9 +451,22 @@
             document.getElementById('btnNextPage').disabled = (currentPage >= totalPages || totalPages === 0);
         }
 
+        // Слушатели на събития (Events)
         document.getElementById('btnLoadData').addEventListener('click', () => { currentPage = 1; loadData(); });
         document.getElementById('btnPrevPage').addEventListener('click', () => { if (currentPage > 1) { currentPage--; loadData(); } });
         document.getElementById('btnNextPage').addEventListener('click', () => { currentPage++; loadData(); });
+
+        // 🔒 АВТОМАТИЧНО ЗАКЛЮЧВАНЕ НА КРАЙНА ДАТА ПО-РАНО ОТ НАЧАЛНАТА
+        const fromDateInput = document.getElementById('fromDate');
+        const toDateInput = document.getElementById('toDate');
+
+        fromDateInput.addEventListener('change', function() {
+            toDateInput.min = this.value;
+            if (toDateInput.value < this.value) {
+                toDateInput.value = this.value;
+            }
+        });
+        toDateInput.min = fromDateInput.value; // Инициализация на лимита
 
         document.addEventListener('DOMContentLoaded', loadStations);
 

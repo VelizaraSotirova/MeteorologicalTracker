@@ -35,6 +35,11 @@ namespace MeteoTracker.Controllers
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 100)
         {
+            if (toDate < fromDate)
+            {
+                return BadRequest("Крайната дата не може да бъде по-рано от началната дата.");
+            }
+
             var (totalCount, data) = await _weatherService.GetMeasurementsAsync(stationId, fromDate, toDate, page, pageSize);
 
             return Ok(new
