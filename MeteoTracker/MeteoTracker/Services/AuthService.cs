@@ -20,11 +20,11 @@ namespace MeteoTracker.Services
             _configuration = configuration;
         }
 
-        public async Task<(bool Success, string Message)> RegisterAsync(RegisterDto dto)
+        public async Task<(bool Success, string Message, string Token, string Role)> RegisterAsync(RegisterDto dto)
         {
             if (await _context.Users.AnyAsync(u => u.Username.ToLower() == dto.Username.ToLower()))
             {
-                return (false, "Потребителското име вече е заето.");
+                return (false, "Потребителското име вече е заето.", null, null);
             }
 
             string passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
@@ -39,7 +39,8 @@ namespace MeteoTracker.Services
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            return (true, "Регистрацията е успешна!");
+            string token = GenerateJwtToken(user);
+            return (true, "Регистрацията е успешна!", token, user.Role);
         }
 
         public async Task<(bool Success, string Message, string Token, string Role)> LoginAsync(LoginDto dto)

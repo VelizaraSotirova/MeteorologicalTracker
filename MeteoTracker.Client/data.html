@@ -271,13 +271,13 @@
                 if (stats) {
                     const avgT = stats.averageTemperature ?? stats.AverageTemperature ?? 0;
                     const maxT = stats.maxTemperature ?? stats.MaxTemperature ?? 0;
-                    const minT = stats.minTemperature ?? stats.MinTemperature ?? 0; // 🔥 Взема свойството от C#
+                    const minT = stats.minTemperature ?? stats.MinTemperature ?? 0;
                     const avgH = stats.averageHumidity ?? stats.AverageHumidity ?? 0;
                     const count = stats.totalMeasurements ?? stats.TotalMeasurements ?? 0;
 
                     document.getElementById('statAvgTemp').innerText = `${Number(avgT).toFixed(1)} °C`;
                     document.getElementById('statMaxTemp').innerText = `${Number(maxT).toFixed(1)} °C`;
-                    document.getElementById('statMinTemp').innerText = `${Number(minT).toFixed(1)} °C`; // 🔥 Визуализира го
+                    document.getElementById('statMinTemp').innerText = `${Number(minT).toFixed(1)} °C`; 
                     document.getElementById('statAvgHum').innerText = `${Number(avgH).toFixed(0)} %`;
                     document.getElementById('statTotalCount').innerText = count;
                     

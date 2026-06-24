@@ -17,15 +17,22 @@ namespace MeteoTracker.Controllers
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> Register(RegisterDto dto)
+        public async Task<IActionResult> Register([FromBody] RegisterDto dto)
         {
             var result = await _authService.RegisterAsync(dto);
+
             if (!result.Success)
             {
-                return BadRequest(result.Message);
+                return BadRequest(new { success = false, message = result.Message });
             }
 
-            return Ok(new { Message = result.Message });
+            return Ok(new
+            {
+                success = true,
+                message = result.Message,
+                token = result.Token,
+                role = result.Role
+            });
         }
 
         [HttpPost("login")]
