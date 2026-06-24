@@ -13,15 +13,12 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #f4f7f6;
         }
-        /* Navigation bar */
         .navbar {
             background-color: #1e3c72 !important;
         }
-        /* Profile dropdown settings */
         .dropdown-item:active {
             background-color: #dc3545 !important;
         }
-        /* Modern Hero section */
         .hero-section {
             background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
             color: white;
@@ -41,7 +38,6 @@
             50% { transform: translateY(-20px); }
             100% { transform: translateY(0px); }
         }
-        /* Interactive feature cards */
         .feature-card {
             transition: transform 0.3s ease, box-shadow 0.3s ease;
             border: none;
@@ -57,7 +53,6 @@
             border-left: 5px solid #1e3c72;
             border-radius: 5px;
         }
-        /* Pulse animation */
         @keyframes pulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.05); }
@@ -81,8 +76,8 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto fw-semibold align-items-center">
                     <li class="nav-item"><a class="nav-link active" href="index.html">Начало</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#" id="navImport">Импорт</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#" id="navData">Данни</a></li>
+                    <li class="nav-item d-none" id="navImportItem"><a class="nav-link" href="import.html" id="navImport">Импорт</a></li>
+                    <li class="nav-item"><a class="nav-link" href="data.html" id="navData">Данни</a></li>
                     
                     <li class="nav-item" id="guestMenu">
                         <a class="nav-link btn btn-warning text-dark px-3 ms-2" href="login.html">Вход</a>
@@ -176,56 +171,64 @@
     <script src="https://unpkg.com/aos@next/dist/aos.js"></script>
     
     <script>
-        // 1. Animations intialization on scroll
+        // 1. Initialize AOS (Animate On Scroll) library for scroll animations
         AOS.init({
             once: true,
             duration: 800
         });
 
-        // 2. Dynimic check for logged-in user and role-based navigation
+        // 2. Dynamic check for logged-in user and role-based menu adjustments
         const token = localStorage.getItem('token');
         const username = localStorage.getItem('username');
-        const userRole = localStorage.getItem('role'); // Проверяваме ролята
+        const userRole = localStorage.getItem('role');
 
         const guestMenu = document.getElementById('guestMenu');
         const userMenu = document.getElementById('userMenu');
         const displayUsername = document.getElementById('displayUsername');
         const btnLogout = document.getElementById('btnLogout');
         const btnStart = document.getElementById('btnStart');
+        const navImportItem = document.getElementById('navImportItem');
 
         if (token && username) {
-            // If we have logged-in user -> change elements in menu
+            // Logged-in user detected -> show user menu, hide guest menu
             guestMenu.classList.add('d-none'); 
             userMenu.classList.remove('d-none'); 
             
-            // Display username with first letter capitalized
+            // Show username with first letter capitalized
             displayUsername.innerText = username.charAt(0).toUpperCase() + username.slice(1);
 
-            // Role-based navigation for the "Start Now" button
+            // Show "Import" menu item only for admin users
+            if (userRole && userRole.toLowerCase() === 'admin') {
+                if (navImportItem) navImportItem.classList.remove('d-none');
+            } else {
+                if (navImportItem) navImportItem.classList.add('d-none');
+            }
+
+            // Role based redirection for the "Start Now" button
             btnStart.addEventListener('click', function() {
-                if (userRole === 'Admin') {
-                    window.location.href = 'import.html'; // admin user goes to import page
+                if (userRole && userRole.toLowerCase() === 'admin') {
+                    window.location.href = 'import.html';
                 } else {
-                    window.location.href = 'data.html'; // regular user goes to data page
+                    window.location.href = 'data.html';
                 }
             });
         } else {
-            // if user is not logged in -> goes to Login
+            // No logged-in user -> show guest menu, hide user menu
+            if (navImportItem) navImportItem.classList.add('d-none');
+            
             btnStart.addEventListener('click', function() {
                 window.location.href = 'login.html';
             });
         }
 
-        // 3. Logout functionality
+        // 3. Logout button logic
         btnLogout.addEventListener('click', function(e) {
             e.preventDefault();
             
-            // Remove user data from localStorage
-            localStorage.removeItem('token');
-            localStorage.removeItem('username');
-            localStorage.removeItem('role');
+            // Clear all user-related data from localStorage
+            localStorage.clear();
             
-            // Reload the page to reflect changes in navigation
+            // Reload the page to reflect the changes in the UI
             window.location.reload();
         });
     </script>
