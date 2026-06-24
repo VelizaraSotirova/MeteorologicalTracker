@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MeteoTracker - Данни</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+        }
+        .navbar {
+            background-color: #1e3c72 !important;
+        }
+        .card-custom {
+            border-radius: 15px;
+            border: none;
+            background: white;
+        }
+        .table-thead {
+            background-color: #1e3c72;
+            color: white;
+        }
+        .stat-card {
+            border-left: 4px solid #1e3c72;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark shadow-sm sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="index.html">
+                <i class="fa-solid fa-cloud-sun-rain me-2 text-warning"></i>MeteoTracker
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto fw-semibold align-items-center">
+                    <li class="nav-item"><a class="nav-link" href="index.html">Начало</a></li>
+                    <li class="nav-item" id="menuImport"><a class="nav-link" href="import.html">Импорт</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="data.html">Данни</a></li>
+                    
+                    <li class="nav-item dropdown" id="userMenu">
+                        <a class="nav-link dropdown-toggle btn btn-outline-light px-3 ms-2 text-white" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fa-solid fa-circle-user me-2 text-warning"></i><span id="displayUsername">Потребител</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="userDropdown">
+                            <li>
+                                <a class="dropdown-item text-danger fw-semibold" href="#" id="btnLogout">
+                                    <i class="fa-solid fa-right-from-bracket me-2"></i>Изход
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container my-5">
+        <div class="mb-4">
+            <h2 class="fw-bold text-dark mb-1">Метеорологични измервания</h2>
+            <p class="text-muted">Изберете станция и времеви период за визуализация.</p>
+        </div>
+
+        <div class="card card-custom shadow-sm p-4 mb-4">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold text-secondary">Станция</label>
+                    <select class="form-select" id="selectStation">
+                        <option value="">-- Изберете станция --</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold text-secondary">От дата</label>
+                    <input type="date" class="form-select" id="fromDate" value="2026-01-01">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold text-secondary">До дата</label>
+                    <input type="date" class="form-select" id="toDate" value="2026-12-31">
+                </div>
+                <div class="col-md-3 d-grid">
+                    <button class="btn btn-primary fw-bold" id="btnLoadData">
+                        <i class="fa-solid fa-magnifying-glass me-2"></i>Покажи данните
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4 d-none" id="statsRow">
+            <div class="col-md-3">
+                <div class="card card-custom shadow-sm p-3 stat-card text-center">
+                    <span class="text-muted small fw-semibold">Средна Температура</span>
+                    <h3 class="fw-bold text-danger mt-1" id="statAvgTemp">-- °C</h3>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card card-custom shadow-sm p-3 stat-card text-center" style="border-left-color: #dc3545;">
+                    <span class="text-muted small fw-semibold">Макс. Температура</span>
+                    <h3 class="fw-bold text-dark mt-1" id="statMaxTemp">-- °C</h3>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card card-custom shadow-sm p-3 stat-card text-center" style="border-left-color: #0d6efd;">
+                    <span class="text-muted small fw-semibold">Средна Влажност</span>
+                    <h3 class="fw-bold text-primary mt-1" id="statAvgHum">-- %</h3>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card card-custom shadow-sm p-3 stat-card text-center" style="border-left-color: #198754;">
+                    <span class="text-muted small fw-semibold">Общ брой записи</span>
+                    <h3 class="fw-bold text-success mt-1" id="statTotalCount">--</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="card card-custom shadow-sm p-4">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-thead">
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col"><i class="fa-solid fa-calendar-days me-2 text-warning"></i>Дата и час</th>
+                            <th scope="col"><i class="fa-solid fa-temperature-half me-2 text-warning"></i>Температура (°C)</th>
+                            <th scope="col"><i class="fa-solid fa-droplet me-2 text-warning"></i>Влажност (%)</th>
+                            <th scope="col"><i class="fa-solid fa-clock me-2 text-warning"></i>Климатичен срок</th>
+                        </tr>
+                    </thead>
+                    <tbody id="weatherTableBody">
+                        <tr>
+                            <td colspan="5" class="text-center py-4 text-muted">Изберете станция и натиснете бутона, за да заредите данни.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <button class="btn btn-outline-secondary btn-sm" id="btnPrevPage" disabled>Предишна</button>
+                <span class="text-muted small" id="pageIndicator">Страница 1</span>
+                <button class="btn btn-outline-secondary btn-sm" id="btnNextPage" disabled>Следваща</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+    const API_BASE_URL = "https://localhost:7025"; 
+
+    // Сигурност на страницата
+    const token = localStorage.getItem('token');
+    const username = localStorage.getItem('username');
+    const userRole = localStorage.getItem('role');
+
+    if (!token || !username) {
+        window.location.href = 'login.html';
+    }
+
+    document.getElementById('displayUsername').innerText = username.charAt(0).toUpperCase() + username.slice(1);
+
+    if (userRole !== 'Admin') {
+        const menuImport = document.getElementById('menuImport');
+        if (menuImport) menuImport.classList.add('d-none');
+    }
+
+    // Променливи за пагинация
+    let currentPage = 1;
+    const pageSize = 15; // Можеш да го смениш и на 100, тъй като бекендът ти поддържа до 100 по подразбиране
+
+    // 1. ЗАРЕЖДАНЕ НА СПИСЪКА СЪС СТАНЦИИ
+    async function loadStations() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/Weather/stations`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const stations = await response.json();
+            const select = document.getElementById('selectStation');
+
+            stations.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.id;
+                opt.innerText = s.name;
+                select.appendChild(opt);
+            });
+        } catch (err) {
+            console.error("Грешка при зареждане на станциите:", err);
+        }
+    }
+
+    // 2. ЗАРЕЖДАНЕ НА ДАННИТЕ И СТАТИСТИКАТА
+    async function loadData() {
+        const stationId = document.getElementById('selectStation').value;
+        const fromDate = document.getElementById('fromDate').value;
+        const toDate = document.getElementById('toDate').value;
+        const tbody = document.getElementById('weatherTableBody');
+
+        if (!stationId) {
+            alert("Моля, изберете станция!");
+            return;
+        }
+
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div> Зареждане...</td></tr>`;
+
+        try {
+            // 🔥 КОРЕКЦИЯ: stationId вече се подава в самия път (Route) съобразно C# контролера
+            const measurementsUrl = `${API_BASE_URL}/api/Weather/measurements/${stationId}?fromDate=${fromDate}&toDate=${toDate}&page=${currentPage}&pageSize=${pageSize}`;
+            
+            const response = await fetch(measurementsUrl, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            const result = await response.json();
+            tbody.innerHTML = '';
+
+            // Тъй като бекендът връща обекта във формат { totalCount, page, pageSize, data }
+            if (!result.data || result.data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-muted">Няма открити измервания за този период.</td></tr>`;
+                updatePagination(0);
+                return;
+            }
+
+            // Визуализиране на редовете от големия "data" масив
+            result.data.forEach((m, index) => {
+                const dateObj = new Date(m.timestamp);
+                const formattedDate = dateObj.toLocaleString('bg-BG');
+                
+                let termLabel = `${dateObj.getHours()}:25 ч.`;
+
+                const row = `
+                    <tr>
+                        <td>${(currentPage - 1) * pageSize + index + 1}</td>
+                        <td>${formattedDate}</td>
+                        <td class="fw-bold text-danger">${Number(m.temperature).toFixed(1)} °C</td>
+                        <td class="fw-bold text-primary">${Number(m.humidity).toFixed(0)} %</td>
+                        <td><span class="badge bg-secondary">${termLabel}</span></td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+
+            updatePagination(result.totalCount);
+            loadStatistics(stationId, fromDate, toDate);
+
+        } catch (err) {
+            console.error(err);
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-danger fw-semibold">Грешка при комуникация с API-то.</td></tr>`;
+        }
+    }
+
+    // 3. ЗАРЕЖДАНЕ НА СТАТИСТИКА
+    async function loadStatistics(stationId, fromDate, toDate) {
+        try {
+            // 🔥 КОРЕКЦИЯ: stationId се подава в пътя (Route)
+            const statsUrl = `${API_BASE_URL}/api/Weather/statistics/${stationId}?fromDate=${fromDate}&toDate=${toDate}`;
+            const response = await fetch(statsUrl, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (response.status === 404) {
+                document.getElementById('statsRow').classList.add('d-none');
+                return;
+            }
+
+            const stats = await response.json();
+            if (stats) {
+                // Използваме точните имена на свойствата, които твоят Entity Framework C# GroupBy генерира:
+                document.getElementById('statAvgTemp').innerText = `${Number(stats.averageTemperature).toFixed(1)} °C`;
+                document.getElementById('statMaxTemp').innerText = `${Number(stats.maxTemperature).toFixed(1)} °C`;
+                document.getElementById('statAvgHum').innerText = `${Number(stats.averageHumidity).toFixed(0)} %`;
+                document.getElementById('statTotalCount').innerText = stats.totalMeasurements;
+                document.getElementById('statsRow').classList.remove('d-none');
+            }
+        } catch (err) {
+            console.error("Грешка при зареждане на статистика:", err);
+        }
+    }
+
+    // Управление на бутоните за страници
+    function updatePagination(totalCount) {
+        const totalPages = Math.ceil(totalCount / pageSize);
+        document.getElementById('pageIndicator').innerText = `Страница ${currentPage} от ${totalPages || 1}`;
+        document.getElementById('btnPrevPage').disabled = (currentPage === 1);
+        document.getElementById('btnNextPage').disabled = (currentPage >= totalPages || totalPages === 0);
+    }
+
+    // Събития за филтри и бутони
+    document.getElementById('btnLoadData').addEventListener('click', () => { currentPage = 1; loadData(); });
+    document.getElementById('btnPrevPage').addEventListener('click', () => { if (currentPage > 1) { currentPage--; loadData(); } });
+    document.getElementById('btnNextPage').addEventListener('click', () => { currentPage++; loadData(); });
+
+    // Зареждане при старт
+    document.addEventListener('DOMContentLoaded', loadStations);
+
+    // Изход
+    document.getElementById('btnLogout').addEventListener('click', function(e) {
+        e.preventDefault();
+        localStorage.clear();
+        window.location.href = 'index.html';
+    });
+</script>
+</body>
+</html>
