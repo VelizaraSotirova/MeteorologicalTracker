@@ -82,11 +82,17 @@ namespace MeteoTracker.Services
                         }
 
                         // 2. Check if the specific date is in Daylight Saving Time (DST) according to the BG time zone
-                        bool isSubmitedInDst = bgTimeZone.IsDaylightSavingTime(timestamp);
-                        int requiredEveningHour = isSubmitedInDst ? 22 : 21; // 22 for summer, 21 for winter
+                        bool isDst = bgTimeZone.IsDaylightSavingTime(timestamp);
+
+                        // Динамично изместваме и ТРИТЕ срока спрямо сезона
+                        int requiredMorningHour = isDst ? 8 : 7;
+                        int requiredNoonHour = isDst ? 15 : 14;
+                        int requiredEveningHour = isDst ? 22 : 21;
 
                         // 3. Check if the hour matches one of the three terms      
-                        if (timestamp.Hour != 8 && timestamp.Hour != 15 && timestamp.Hour != requiredEveningHour)
+                        if (timestamp.Hour != requiredMorningHour &&
+                            timestamp.Hour != requiredNoonHour &&
+                            timestamp.Hour != requiredEveningHour)
                         {
                             continue; // We don't need this hour, skip the row
                         }
